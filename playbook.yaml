@@ -90,5 +90,5 @@
       enabled: yes
   - name: copy index.php
     copy: 
-      src: files/index.php
-      dest: /var/www/html/index.php
+      src: site/*
+      dest: /var/www/html/*

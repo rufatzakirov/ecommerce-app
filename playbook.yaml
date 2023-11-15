@@ -1,0 +1,96 @@
+- name: install packages
+  become: yes
+  hosts: all
+  tasks:
+  - yum:
+      name:
+      - libselinux-python
+      - libsemanage-python
+      - firewalld
+    # Install and Configure Database
+  - name: start mysql service
+    service:
+      name: firewalld
+      state: started
+      enabled: yes
+
+- name: Install and Configure Database
+  hosts: lamp-db
+  become: yes
+  tasks:
+  - name: install nysql server
+    yum:
+      name: 
+      - mariadb-server
+      - MySQL-python
+  - name: copy files/my.cnf to /etc/my.cnf
+    copy:
+      src: files/my.cnf
+      dest: /etc/my.cnf
+  - name: start mysql service
+    service:
+      name: "{{ item }}"
+      state: started
+      enabled: yes
+    loop:
+    - firewalld
+    - mariadb
+  - name: enable firewall rule 
+    firewalld:
+      port: 3306/tcp
+      immediate: yes
+      permanent: yes
+      state: enabled
+      zone: public
+  - name: create database
+    mysql_db:
+      name: "{{ dbname }}"
+  - name: create user in database
+    mysql_user:
+      user: "{{ dbuser }}"
+      password: "{{ dbpassword }}"
+      priv: '*.*:ALL'
+      host: "172.20.1.100"
+  - name: copy script to /tmp
+    copy:
+      src: files/db-load-script.sql
+      dest: /tmp/db-load-script.sql
+  - name: run script 
+    shell: mysql -f < /tmp/db-load-script.sql
+
+# INSTALL WEB SERVER
+
+- name: install and configure web server
+  hosts: lampweb
+  become: yes
+  tasks:
+  - name: install packages
+    yum:
+      name:
+      - httpd
+      - php
+      - php-mysql
+      - git
+  - name: open firewall rule
+    firewalld:
+      port: "{{ httpd_port }}/tcp"
+      state: enabled
+      immediate: yes
+      permanent: yes
+  - name: Set index.php as the default page
+    tags: "Set index.php as the default page"
+    replace:
+      path: /etc/httpd/conf/httpd.conf
+      regexp: 'DirectoryIndex index.html'
+      replace: 'DirectoryIndex index.php'
+  - name: Start and enable the httpd service
+    service: 
+      name: httpd
+      state: started
+      enabled: yes
+  - name: Copy the code from repository
+    git: repo={{ repository }} dest=/var/www/html/  force=yes
+  - name: copy index.php
+    copy: 
+      src: files/index.php
+      dest: /var/www/html/index.php
